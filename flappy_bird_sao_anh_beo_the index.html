@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flappy Bird</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f3f4f6;font-family:Arial,sans-serif}
+.game{position:relative;width:min(520px,100vw);overflow:hidden;border-radius:16px}
+canvas{display:block;width:100%;height:auto;background:#bdeaff}
+#score{position:absolute;top:12px;left:0;right:0;text-align:center;font-size:38px;font-weight:900;color:#111;text-shadow:2px 2px #fff;z-index:2}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;background:rgba(255,255,255,.86);z-index:3}
+.hidden{display:none}
+.title{font-size:38px;font-weight:900}
+.lose{font-size:clamp(42px,10vw,76px);line-height:.92;font-weight:1000;color:#000}
+.sub{margin-top:14px;font-size:18px;font-weight:700}
+button{margin-top:18px;padding:12px 25px;border:0;border-radius:10px;background:#111;color:#fff;font-size:17px;font-weight:800;cursor:pointer}
+</style>
+</head>
+<body>
+<div class="game" id="game">
+<canvas id="canvas" width="520" height="700"></canvas>
+<div id="score">0</div>
+
+<div class="overlay" id="start">
+<div>
+<div class="title">FLAPPY BIRD</div>
+<div class="sub">Click hoặc nhấn Space để bay</div>
+<button id="startBtn">Bắt đầu</button>
+</div>
+</div>
+
+<div class="overlay hidden" id="lose">
+<div>
+<div class="lose">SAO ANH<br>BÉO THẾ</div>
+<div class="sub" id="final">Điểm: 0</div>
+<button id="again">Chơi lại</button>
+</div>
+</div>
+</div>
+
+<script>
+const canvas=document.getElementById("canvas"),ctx=canvas.getContext("2d");
+const start=document.getElementById("start"),lose=document.getElementById("lose");
+const scoreEl=document.getElementById("score"),final=document.getElementById("final");
+const W=520,H=700,ground=650;
+let bird,pipes,score,running=false,last=0,raf;
+
+function reset(){
+ bird={x:125,y:330,vy:0,r:17};
+ pipes=[];score=0;scoreEl.textContent="0";
+}
+function addPipe(){
+ const gap=175,top=90+Math.random()*300;
+ pipes.push({x:W+20,w:72,top,gap,passed:false});
+}
+function startGame(){
+ cancelAnimationFrame(raf);reset();running=true;
+ start.classList.add("hidden");lose.classList.add("hidden");
+ last=performance.now();raf=requestAnimationFrame(loop);
+}
+function flap(){
+ if(!running){startGame();return}
+ bird.vy=-430;
+}
+function hitCircleRect(cx,cy,r,rx,ry,rw,rh){
+ const x=Math.max(rx,Math.min(cx,rx+rw));
+ const y=Math.max(ry,Math.min(cy,ry+rh));
+ return (cx-x)**2+(cy-y)**2<r*r;
+}
+function gameOver(){
+ running=false;final.textContent="Điểm: "+score;lose.classList.remove("hidden");
+}
+function draw(){
+ ctx.clearRect(0,0,W,H);
+
+ // clouds
+ ctx.fillStyle="rgba(255,255,255,.8)";
+ for(const c of [[100,105,35],[145,105,45],[185,110,30]]){
+   ctx.beginPath();ctx.arc(c[0],c[1],c[2],0,Math.PI*2);ctx.fill();
+ }
+
+ // pipes
+ for(const p of pipes){
+   ctx.fillStyle="#62a832";
+   ctx.fillRect(p.x,0,p.w,p.top);
+   ctx.fillRect(p.x,p.top+p.gap,p.w,ground-p.top-p.gap);
+   ctx.fillStyle="#4d8e29";
+   ctx.fillRect(p.x-5,p.top-12,p.w+10,12);
+   ctx.fillRect(p.x-5,p.top+p.gap,p.w+10,12);
+ }
+
+ // ground
+ ctx.fillStyle="#9b6b35";ctx.fillRect(0,ground,W,H-ground);
+ ctx.fillStyle="#78b843";ctx.fillRect(0,ground,W,12);
+
+ // bird
+ ctx.save();
+ ctx.translate(bird.x,bird.y);
+ ctx.rotate(Math.max(-.45,Math.min(1.15,bird.vy/600)));
+ ctx.fillStyle="#ffd83d";
+ ctx.beginPath();ctx.arc(0,0,bird.r,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(7,-6,6,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle="#111";ctx.beginPath();ctx.arc(9,-6,2.5,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle="#f08a25";
+ ctx.beginPath();ctx.moveTo(16,2);ctx.lineTo(31,7);ctx.lineTo(16,11);ctx.closePath();ctx.fill();
+ ctx.restore();
+}
+function loop(t){
+ const dt=Math.min((t-last)/1000,.035);last=t;
+ bird.vy+=1250*dt;bird.y+=bird.vy*dt;
+
+ if(!pipes.length||pipes[pipes.length-1].x<W-240)addPipe();
+
+ for(const p of pipes){
+   p.x-=190*dt;
+   if(!p.passed&&p.x+p.w<bird.x){
+     p.passed=true;score++;scoreEl.textContent=score;
+   }
+ }
+ pipes=pipes.filter(p=>p.x+p.w>-20);
+
+ let hit=bird.y-bird.r<0||bird.y+bird.r>ground;
+ for(const p of pipes){
+   if(hitCircleRect(bird.x,bird.y,bird.r,p.x,0,p.w,p.top)||
+      hitCircleRect(bird.x,bird.y,bird.r,p.x,p.top+p.gap,p.w,ground-p.top-p.gap))
+      hit=true;
+ }
+ draw();
+ if(hit){gameOver();return}
+ raf=requestAnimationFrame(loop);
+}
+
+document.getElementById("startBtn").onclick=startGame;
+document.getElementById("again").onclick=startGame;
+canvas.addEventListener("pointerdown",e=>{e.preventDefault();flap()});
+document.addEventListener("keydown",e=>{
+ if(e.code==="Space"||e.code==="ArrowUp"){e.preventDefault();flap()}
+});
+reset();draw();
+</script>
+</body>
+</html>
